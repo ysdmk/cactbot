@@ -5,12 +5,22 @@ import TimerBar from '../../resources/timerbar';
 import { FisherOptions } from './fisher';
 
 class FisherBar extends TimerBar {
+  static create(): FisherBar {
+    return document.createElement('fisher-bar') as FisherBar;
+  }
+
   stop() {
     if (this._animationFrame !== undefined)
       cancelAnimationFrame(this._animationFrame);
     this._animationFrame = undefined;
   }
 }
+
+type BarInfo = {
+  row: HTMLElement;
+  bar: FisherBar;
+  timeouts: number[];
+};
 
 // Preferred method but old CEF doesn't have this.
 window.customElements.define('fisher-bar', FisherBar);
@@ -23,7 +33,7 @@ export default class FisherUI {
   private arrowEl: HTMLElement;
   private castStart?: Date;
   private animationFrame = 0;
-  private bars: unknown[];
+  private bars: BarInfo[] = [];
 
   constructor(private options: FisherOptions, private element: HTMLElement) {
     const baitEl = element.querySelector('#bait-name');
@@ -72,32 +82,33 @@ export default class FisherUI {
   }
 
   startTimers(): void {
-    const barData = {};
-
     const rows = this.element.querySelectorAll('.table-row');
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const min = row.getAttribute('data-min');
-      const max = row.getAttribute('data-max');
-      const bar = document.createElement('fisher-bar');
+    for (const row of rows) {
+      if (!(row instanceof HTMLElement))
+        throw new UnreachableCode();
+      const minStr = row.getAttribute('data-min');
+      const maxStr = row.getAttribute('data-max');
+      const bar = FisherBar.create();
       let timeouts = [];
 
       bar.centertext = row.getAttribute('data-fish');
 
       // Step one: fill until the minimum time
-      if ((min && min !== 'undefined') && (max && max !== 'undefined')) {
-        row.opacity = 0.8;
+      if ((minStr && minStr !== 'undefined') && (maxStr && maxStr !== 'undefined')) {
+        const min = parseFloat(minStr);
+        const max = parseFloat(maxStr);
+        row.style.opacity = '0.8';
         bar.duration = min / 1000;
         bar.stylefill = 'fill';
         // Step two: empty until the maximum time
         timeouts.push(window.setTimeout(() => {
-          row.style.opacity = 1;
+          row.style.opacity = '1';
           bar.stylefill = 'empty';
           bar.value = 0;
           bar.duration = (max - min) / 1000;
           timeouts.push(window.setTimeout(() => {
-            row.style.opacity = 0.5;
+            row.style.opacity = '0.5';
           }, (max - min)));
         }, min));
       } else {
@@ -105,8 +116,15 @@ export default class FisherUI {
         timeouts = [];
       }
 
-      if (row.getAttribute('data-tug'))
-        bar.fg = this.options.Colors[this.tugNames[row.getAttribute('data-tug')]];
+      const dataTug = row.getAttribute('data-tug');
+      if (dataTug !== null) {
+        const tugName = this.tugNames[parseInt(dataTug)];
+        if (tugName) {
+          const color = this.options.Colors[tugName];
+          if (color)
+            bar.fg = color;
+        }
+      }
 
       while (row.lastChild)
         row.removeChild(row.lastChild);

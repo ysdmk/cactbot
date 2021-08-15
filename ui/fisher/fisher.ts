@@ -14,13 +14,8 @@ import './fisher.css';
 export interface FisherOptions extends BaseOptions {
   IQRHookQuantity: number;
   IQRTugQuantity: number;
-  Colors: {
-    unknown: string;
-    light: string;
-    medium: string;
-    heavy: string;
-  };
-};
+  Colors: { [tugType: string]: string };
+}
 
 const defaultOptions: FisherOptions = {
   ...UserConfig.getDefaultBaseOptions(),

@@ -33,16 +33,16 @@ export default class SeaBase {
     return new Promise((resolve, reject) => {
       const req = window.indexedDB.open(this._dbName, this._dbVersion);
 
-      req.onsuccess = (event) => {
+      req.onsuccess = () => {
         resolve(req.result);
       };
 
-      req.onerror = (event) => {
+      req.onerror = () => {
         reject(req.error);
       };
 
-      req.onupgradeneeded = (event) => {
-        const db = event.target.result;
+      req.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+        const db = event.target?.result;
         const tx = event.target.transaction;
         let objectStore;
 
@@ -57,18 +57,18 @@ export default class SeaBase {
         if (!objectStore.indexNames.contains('fishbaitchum'))
           objectStore.createIndex('fishbaitchum', ['fish', 'bait', 'chum'], { unique: false });
 
-        tx.oncomplete = (event) => {
+        tx.oncomplete = () => {
           resolve(db);
         };
       };
     });
   }
 
-  getTransaction(db, mode) {
+  getTransaction(db: IDBDatabase, mode: IDBTransactionMode): IDBTransaction {
     return db.transaction(this._storeName, mode);
   }
 
-  getIQRThresholds(times) {
+  getIQRThresholds(times: number[]): { low: number; high: number } {
     // first, calculate IQR to get a threshold for outliers
     let q1;
     let q3;
@@ -114,7 +114,7 @@ export default class SeaBase {
     };
   }
 
-  normalizeHooks(times) {
+  normalizeHooks(times: number[]): { min: number; max: number } {
     const thresholds = this.getIQRThresholds(times);
 
     let min;
@@ -143,7 +143,7 @@ export default class SeaBase {
     };
   }
 
-  addCatch(data) {
+  addCatch(data): void {
     // Add a catch to the database
     let commit = true;
 
@@ -227,7 +227,7 @@ export default class SeaBase {
     return info;
   }
 
-  getFish(fish) {
+  getFish(fish: string) {
     const result = this.getInfo('fish', fish);
     if (!result.id || !result.name)
       console.log('failed to look up fish: ' + fish);
@@ -266,7 +266,7 @@ export default class SeaBase {
   queryHookTimes(index, fish, bait, chum) {
     const times = [];
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       index.openCursor(IDBKeyRange.only([fish.id.toString(), bait.id, chum ? 1 : 0]))
         .onsuccess = (event) => {
           const cursor = event.target.result;
