@@ -26,6 +26,7 @@ export default (
     let extension = 'js';
     if (
       [
+        'fisher',
         'oopsyraidsyLive',
         'oopsyraidsySummary',
         'radar',

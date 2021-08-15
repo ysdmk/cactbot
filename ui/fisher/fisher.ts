@@ -1,13 +1,29 @@
+import { UnreachableCode } from '../../resources/not_reached';
 import { addOverlayListener } from '../../resources/overlay_plugin_api';
+import UserConfig from '../../resources/user_config';
+import { BaseOptions } from '../../types/data';
+import { EventResponses } from '../../types/event';
+import { Job } from '../../types/job';
 
 import FisherUI from './fisher-ui';
 import SeaBase from './seabase';
-import UserConfig from '../../resources/user_config';
 
 import '../../resources/defaults.css';
 import './fisher.css';
 
-const defaultOptions = {
+export interface FisherOptions extends BaseOptions {
+  IQRHookQuantity: number;
+  IQRTugQuantity: number;
+  Colors: {
+    unknown: string;
+    light: string;
+    medium: string;
+    heavy: string;
+  };
+};
+
+const defaultOptions: FisherOptions = {
+  ...UserConfig.getDefaultBaseOptions(),
   IQRHookQuantity: 100,
   IQRTugQuantity: 10,
   Colors: {
@@ -18,31 +34,39 @@ const defaultOptions = {
   },
 };
 
+type Bait = {
+  id: string;
+  name: string;
+};
+
 class Fisher {
-  constructor(options, element) {
-    this.options = options;
-    this.element = element;
+  private job: Job = 'NONE';
+  private baseBait?: Bait;
+  private moochBait?: Bait;
+  private lastCatch?: Bait;
+  private place?: string;
 
-    this.zone = null;
-    this.job = null;
+  private castStart?: Date;
+  private castEnd?: Date;
+  private castGet?: Date;
 
+  private ui: FisherUI;
+  private seaBase: SeaBase;
+
+  // State tracking
+  private fishing = false;
+  private mooching = false;
+  private snagging = false;
+  private chum = false;
+  private chumOnCatch = false;
+
+  constructor(private options: FisherOptions, private element: HTMLElement) {
     this.baseBait = { id: null, name: null };
-    this.moochBait = { id: null, name: null };
     this.lastCatch = { id: null, name: null };
-    this.place = { id: null, name: null };
-    this.fishing = false;
-    this.mooching = false;
-    this.snagging = false;
-    this.chum = false;
-    this.chumOnCatch = false;
 
     this.placeFish = null;
     this.hookTimes = null;
     this.tugTypes = null;
-
-    this.castStart = null;
-    this.castEnd = null;
-    this.castGet = null;
 
     this.regex = {
       // Localized strings from: https://xivapi.com/LogMessage?pretty=1&columns=ID,Text_de,Text_en,Text_fr,Text_ja&ids=1110,1111,1112,1113,1115,1116,1117,1118,1119,1120,1121,1127,1129,3511,3512,3515,3516,3525
@@ -175,14 +199,14 @@ class Fisher {
     this.seaBase = new SeaBase(this.options);
   }
 
-  getActiveBait() {
+  getActiveBait(): Bait {
     if (this.mooching)
       return this.moochBait;
 
     return this.baseBait;
   }
 
-  updateFishData() {
+  updateFishData(): Promise<void> {
     // We can only know data for both of these
     if (!this.place || !this.getActiveBait()) {
       return new Promise(
@@ -232,7 +256,7 @@ class Fisher {
     );
   }
 
-  handleBait(bait) {
+  handleBait(bait: number): void {
     let name = '';
     // Mooching: bait is the last fish
     if (this.mooching) {
@@ -245,11 +269,11 @@ class Fisher {
     this.ui.setBait(name);
   }
 
-  handleCast(place) {
-    this.element.style.opacity = 1;
+  handleCast(place: string): void {
+    this.element.style.opacity = '1';
     this.castStart = new Date();
-    this.castEnd = null;
-    this.castGet = null;
+    this.castEnd = undefined;
+    this.castGet = undefined;
     this.fishing = true;
 
     // undiscovered fishing hole
@@ -284,7 +308,7 @@ class Fisher {
     this.ui.stopFishing();
   }
 
-  handleCatch(fish) {
+  handleCatch(fish: string) {
     this.castGet = new Date();
     this.lastCatch = this.seaBase.getFish(fish);
     this.fishing = false;
@@ -341,7 +365,7 @@ class Fisher {
 
   handleChumGain() {
     this.chum = true;
-    this.updateFishData();
+    void this.updateFishData();
   }
 
   handleChumFade() {
@@ -354,20 +378,20 @@ class Fisher {
     this.lastCatch = null;
     this.place = null;
     this.ui.setPlace(null);
-    this.element.style.opacity = 0;
+    this.element.style.opacity = '0';
   }
 
-  handleDiscover(place) {
+  handleDiscover(place: string) {
     this.place = this.seaBase.getPlace(place);
     // This lookup could fail and, for German,
     // this.place.name may differ from place
     // due to differing cast vs location names.
     if (this.place.id)
       this.ui.setPlace(this.place.name);
-    this.updateFishData();
+    void this.updateFishData();
   }
 
-  parseLine(log) {
+  parseLine(log: string) {
     let result = null;
 
     for (const type in this.regex[this.options.ParserLanguage]) {
@@ -413,18 +437,17 @@ class Fisher {
     }
   }
 
-  OnLogEvent(e) {
+  OnLogEvent(e: EventResponses['onLogEvent']) {
     if (this.job === 'FSH')
-      e.detail.logs.forEach(this.parseLine, this);
+      e.detail.logs.forEach((log) => this.parseLine(log));
   }
 
-  OnChangeZone(e) {
-    this.zone = e.zoneName;
-    this.place = null;
-    this.ui.setPlace(null);
+  OnChangeZone() {
+    this.place = undefined;
+    this.ui.setPlace(undefined);
   }
 
-  OnPlayerChange(e) {
+  OnPlayerChange(e: EventResponses['onPlayerChangedEvent']) {
     this.job = e.detail.job;
     if (this.job === 'FSH') {
       this.element.style.display = 'block';
@@ -438,7 +461,10 @@ class Fisher {
 
 UserConfig.getUserConfigLocation('fisher', defaultOptions, () => {
   const options = { ...defaultOptions };
-  const fisher = new Fisher(options, document.getElementById('fisher'));
+  const element = document.getElementById('fisher');
+  if (!element)
+    throw new UnreachableCode();
+  const fisher = new Fisher(options, element);
 
   addOverlayListener('onLogEvent', (e) => {
     fisher.OnLogEvent(e);

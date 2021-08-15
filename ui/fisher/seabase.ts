@@ -1,16 +1,17 @@
 import gFisherData from './static-data';
+import { FisherOptions } from './fisher';
 
 export default class SeaBase {
-  constructor(options) {
-    this._dbName = 'seabase';
-    this._dbVersion = 1;
-    this._storeName = 'catches';
-    this.db = null;
-    this.options = options;
+  private readonly _dbName = 'seabase';
+  private readonly _dbVersion = 1;
+  private readonly _storeName = 'catches';
+  private readonly parserLang: string;
+
+  constructor(private options: FisherOptions) {
     this.parserLang = this.options.ParserLanguage;
   }
 
-  findKey(obj, val) {
+  findKey(obj, val: string) {
     // This is a little inefficient to lowercase everything here.
     // However, we want the real capitalization to use for UI so can't
     // lowercase it in the data unless we made another copy.

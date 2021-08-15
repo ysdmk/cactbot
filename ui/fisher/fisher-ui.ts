@@ -1,53 +1,64 @@
+import { UnreachableCode } from '../../resources/not_reached';
 import TimerBar from '../../resources/timerbar';
+
+// TODO: move FisherOptions to its own file?
+import { FisherOptions } from './fisher';
 
 class FisherBar extends TimerBar {
   stop() {
-    cancelAnimationFrame(this._animationFrame);
-    this._animationFrame = null;
+    if (this._animationFrame !== undefined)
+      cancelAnimationFrame(this._animationFrame);
+    this._animationFrame = undefined;
   }
 }
 
-if (window.customElements) {
-  // Preferred method but old CEF doesn't have this.
-  window.customElements.define('fisher-bar', FisherBar);
-} else {
-  document.registerElement('fisher-bar', {
-    prototype: Object.create(FisherBar.prototype),
-  });
-}
+// Preferred method but old CEF doesn't have this.
+window.customElements.define('fisher-bar', FisherBar);
 
 export default class FisherUI {
-  constructor(options, element) {
-    this.element = element;
-    this.options = options;
-    this.baitEl = element.querySelector('#bait-name');
-    this.placeEl = element.querySelector('#place-name');
-    this.timeEl = element.querySelector('#cast-duration');
-    this.arrowEl = element.querySelector('#fisher-arrow');
+  private readonly tugNames = ['unknown', 'light', 'medium', 'heavy'];
+  private baitEl: HTMLElement;
+  private placeEl: HTMLElement;
+  private timeEl: HTMLElement;
+  private arrowEl: HTMLElement;
+  private castStart?: Date;
+  private animationFrame = 0;
+  private bars: unknown[];
 
-    this.tugNames = ['unknown', 'light', 'medium', 'heavy'];
+  constructor(private options: FisherOptions, private element: HTMLElement) {
+    const baitEl = element.querySelector('#bait-name');
+    const placeEl = element.querySelector('#place-name');
+    const timeEl = element.querySelector('#cast-duration');
+    const arrowEl = element.querySelector('#fisher-arrow');
+    if (
+      !(baitEl instanceof HTMLElement) || !(placeEl instanceof HTMLElement) ||
+      !(timeEl instanceof HTMLElement) || !(arrowEl instanceof HTMLElement)
+    )
+      throw new UnreachableCode();
 
-    this.castStart = null;
-    this.fishing = false;
-    this.animationFrame = false;
-    this.bars = [];
+    this.baitEl = baitEl;
+    this.placeEl = placeEl;
+    this.timeEl = timeEl;
+    this.arrowEl = arrowEl;
   }
 
-  draw() {
-    const timeMs = (new Date() - this.castStart);
+  draw(): void {
+    if (this.castStart === undefined)
+      return;
+    const timeMs = (Date.now() - this.castStart.valueOf());
     const time = (timeMs / 1000).toFixed(1);
 
     this.timeEl.innerHTML = time;
-    this.arrowEl.style.top = (timeMs / 600) + '%';
+    this.arrowEl.style.top = `${timeMs / 600}%`;
 
     this.animationFrame = requestAnimationFrame(this.draw.bind(this));
   }
 
-  setBait(baitName) {
+  setBait(baitName: string): void {
     this.baitEl.innerHTML = baitName;
   }
 
-  setPlace(place) {
+  setPlace(place?: string): void {
     const oldPlace = this.placeEl.innerHTML;
 
     if (!place) {
@@ -60,7 +71,7 @@ export default class FisherUI {
     }
   }
 
-  startTimers() {
+  startTimers(): void {
     const barData = {};
 
     const rows = this.element.querySelectorAll('.table-row');
@@ -112,10 +123,10 @@ export default class FisherUI {
     this.draw();
   }
 
-  stopTimers() {
+  stopTimers(): void {
     // Stops cast time timer and arrow
     cancelAnimationFrame(this.animationFrame);
-    this.animationFrame = null;
+    this.animationFrame = 0;
 
     this.bars.forEach((bar) => {
       // Stops the timed events
@@ -184,16 +195,13 @@ export default class FisherUI {
     }
   }
 
-  startFishing() {
-    this.fishing = true;
+  startFishing(): void {
     this.castStart = new Date();
     this.startTimers();
   }
 
-  stopFishing() {
+  stopFishing(): void {
     this.stopTimers();
-    this.fishing = false;
-
-    this.animationFrame = null;
+    this.animationFrame = 0;
   }
 }

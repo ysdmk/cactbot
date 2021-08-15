@@ -22,7 +22,7 @@ export default class TimerBar extends HTMLElement {
   private _loop: boolean;
   private _connected: boolean;
   private _hideTimer: number | null;
-  private _animationFrame: number | null;
+  protected _animationFrame?: number;
 
   static get observedAttributes(): string[] {
     return [
@@ -234,7 +234,7 @@ export default class TimerBar extends HTMLElement {
     this._hideAfter = -1;
     this._loop = false;
     this._hideTimer = 0;
-    this._animationFrame = 0;
+    this._animationFrame = undefined;
 
     this.rootElement = this.shadowRoot?.getElementById('root') as HTMLDivElement;
     this.foregroundElement = this.shadowRoot?.getElementById('fg') as HTMLDivElement;
@@ -561,7 +561,7 @@ export default class TimerBar extends HTMLElement {
         this.hide();
 
       window.cancelAnimationFrame(this._animationFrame ?? 0);
-      this._animationFrame = null;
+      this._animationFrame = undefined;
     } else {
       // Timer not completed, request another animation frame
       this._animationFrame = window.requestAnimationFrame(this.advance.bind(this));
