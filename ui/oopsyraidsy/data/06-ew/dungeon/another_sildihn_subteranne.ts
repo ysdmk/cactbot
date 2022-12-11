@@ -105,7 +105,6 @@ const triggerSet: OopsyTriggerSet<Data> = {
   },
   shareFail: {
     'ASS Aqueduct Belladonna Deracinator': '7962', // tank buster cleave(?)
-    'ASS Silkie Carpet Beater': '774F', // tank buster cleave(?)
     'ASS Gladiator Mighty Smite': '7672', // tank buster cleave(?)
     'ASS Gladiator Scream of the Fallen': '7678', // defamations during towers
     'ASS Gladiator Explosion': '766A', // towers
