@@ -1,8 +1,10 @@
 import Conditions from '../../../../../resources/conditions';
 import Outputs from '../../../../../resources/outputs';
+import { callOverlayHandler } from '../../../../../resources/overlay_plugin_api';
 import { Responses } from '../../../../../resources/responses';
 import ZoneId from '../../../../../resources/zone_id';
 import { RaidbossData } from '../../../../../types/data';
+import { PluginCombatantState } from '../../../../../types/event';
 import { NetMatches } from '../../../../../types/net_matches';
 import { TriggerSet } from '../../../../../types/trigger';
 
@@ -39,6 +41,7 @@ export type NophicaMarch = 'front' | 'back' | 'left' | 'right';
 export type HaloneTetra = 'out' | 'in' | 'left' | 'right' | 'unknown';
 
 export interface Data extends RaidbossData {
+  combatantData: PluginCombatantState[];
   nophicaMarch?: NophicaMarch;
   nophicaHeavensEarthTargets: string[];
   nymeiaHydrostasis: NetMatches['StartsUsing'][];
@@ -60,6 +63,7 @@ const triggerSet: TriggerSet<Data> = {
   timelineFile: 'euphrosyne.txt',
   initData: () => {
     return {
+      combatantData: [],
       nophicaHeavensEarthTargets: [],
       nymeiaHydrostasis: [],
       haloneTetrapagos: [],
@@ -69,6 +73,19 @@ const triggerSet: TriggerSet<Data> = {
     };
   },
   triggers: [
+    {
+      id: 'Euphrosyne Nophica DEBUG',
+      type: 'HeadMarker',
+      netRegex: { id: ['018[EF]', '019[0-3]'] },
+      promise: async (_data, matches) => {
+        const ids = [parseInt(matches.targetId, 16)];
+        const combatantData = (await callOverlayHandler({
+          call: 'getCombatants',
+          ids: ids,
+        })).combatants;
+        console.log(JSON.stringify(combatantData));
+      },
+    },
     {
       id: 'Euphrosyne Nophica Abundance',
       type: 'StartsUsing',
@@ -361,19 +378,30 @@ const triggerSet: TriggerSet<Data> = {
       delaySeconds: 0.5,
       durationSeconds: 18,
       suppressSeconds: 20,
+      promise: async (data) => {
+        data.combatantData = [];
+        const ids = data.nymeiaHydrostasis.map((line) => parseInt(line.sourceId, 16));
+        data.combatantData = (await callOverlayHandler({
+          call: 'getCombatants',
+          ids: ids,
+        })).combatants;
+      },
       infoText: (data, _matches, output) => {
+        console.log(JSON.stringify(data.nymeiaHydrostasis));
+        console.log(JSON.stringify(data.combatantData));
         type HydrostasisDir = 'N' | 'SW' | 'SE';
 
-        const lines = data.nymeiaHydrostasis.sort((a, b) => a.id.localeCompare(b.id));
-        const dirs: HydrostasisDir[] = lines.map((line) => {
+        // Could sort by cast id, but actor id also appears to work.  7A3E sorts first in this case,
+        // but won't appear by the time this trigger is run.
+
+        const lines = data.combatantData.sort((a, b) => (a.ID ?? 0) - (b.ID ?? 0));
+        const dirs: HydrostasisDir[] = lines.map((c) => {
           const centerX = 50;
           const centerY = -741;
 
-          const x = parseFloat(line.x);
-          const y = parseFloat(line.y);
-          if (y < centerY)
+          if (c.PosY < centerY)
             return 'N';
-          return x < centerX ? 'SW' : 'SE';
+          return c.PosX < centerX ? 'SW' : 'SE';
         });
 
         const [first, second, third] = dirs;
@@ -471,7 +499,31 @@ const triggerSet: TriggerSet<Data> = {
         unknown: Outputs.unknown,
       },
     },
-
+    {
+      id: 'Euphrosyne Halone Tetrapagos Followup',
+      type: 'Ability',
+      // self-targeted abilities
+      // 7D4B = circle
+      // 7D4E = donut
+      // 7D50 = right cleave
+      // 7D51 = left cleave
+      netRegex: { id: ['7D4B', '7D4E', '7D50', '7D51'], source: 'Halone', capture: false },
+      durationSeconds: 1.5,
+      infoText: (data, _matches, output) => {
+        if (data.haloneTetrapagos.length === 4)
+          data.haloneTetrapagos.shift();
+        const dir = data.haloneTetrapagos.shift();
+        if (dir === undefined)
+          return;
+        return output[dir]!();
+      },
+      outputStrings: {
+        out: Outputs.out,
+        in: Outputs.in,
+        left: Outputs.left,
+        right: Outputs.right,
+      },
+    },
     {
       id: 'Euphrosyne Halone Doom Spear',
       type: 'StartsUsing',
